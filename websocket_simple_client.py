@@ -90,7 +90,7 @@ class SimpleWebSocketClient:
             # Connect with authentication headers
             async with websockets.connect(
                 self.ws_url,
-                additional_headers=auth_headers,
+                extra_headers=auth_headers,
                 ssl=ssl_context,
                 ping_interval=20,
                 ping_timeout=10,
