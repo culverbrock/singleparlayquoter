@@ -14,9 +14,8 @@ from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
 import sys
 
-# Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from kalshi_integration.kalshi_client import KalshiClient
+# Import from local kalshi_client
+from kalshi_client import KalshiClient
 
 # Load environment
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
