@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Single Parlay Quoter - Dynamic Parlay Builder</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body {
+            background: #f5f5f5;
+            color: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        .header {
+            background: #e0e0e0;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+        }
+        .stat-card {
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .status-connected { background: #666; }
+        .status-disconnected { background: #999; }
+        
+        .feed {
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 1rem;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .feed-item {
+            background: #f9f9f9;
+            border-left: 3px solid #999;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            border-radius: 4px;
+        }
+        .feed-item.rfq-match {
+            background: #d4edda;
+            border-left-color: #28a745;
+        }
+        .feed-item.rfq-no-match {
+            background: #f8d7da;
+            border-left-color: #dc3545;
+        }
+        .feed-item.quote-matched {
+            border-left-color: #666;
+        }
+        .feed-item.quote-error {
+            border-left-color: #999;
+        }
+        .rfq-legs {
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid #ccc;
+            font-size: 0.85rem;
+        }
+        .rfq-leg {
+            padding: 0.2rem 0;
+            color: #666;
+        }
+        .timestamp {
+            color: #666;
+            font-size: 0.85rem;
+        }
+        .market-name {
+            color: #000;
+            font-weight: 600;
+        }
+        .quote-price {
+            background: #e0e0e0;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-family: monospace;
+            color: #000;
+        }
+        .btn-start {
+            background: #666;
+            color: #fff;
+            border: none;
+            padding: 0.75rem 2rem;
+            font-weight: 600;
+        }
+        .btn-start:hover {
+            background: #555;
+        }
+        h4 {
+            color: #000;
+        }
+        .text-muted {
+            color: #666 !important;
+        }
+        .contract-id {
+            cursor: pointer;
+            text-decoration: underline;
+            color: #0066cc;
+        }
+        .contract-id:hover {
+            color: #004499;
+        }
+        .full-ticker {
+            display: none;
+            background: #e0e0e0;
+            padding: 0.25rem 0.5rem;
+            margin-top: 0.25rem;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.7rem;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <!-- Header -->
+        <div class="header">
+            <h1>Single Parlay Quoter</h1>
+            <p class="mb-0" id="monitoring-text"><em class="text-muted">Select the combo below to monitor and quote</em></p>
+            <p class="mb-0 mt-2">
+                <span id="ws-status" class="status-dot status-disconnected"></span>
+                <span id="status-text">Disconnected</span>
+            </p>
+        </div>
+
+        <!-- API Credentials Row -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="stat-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <h6 class="text-muted" style="margin: 0;">API Credentials (Required)</h6>
+                        <button id="show-help-btn" class="btn btn-sm" style="background: #17a2b8; color: white; padding: 0.25rem 0.75rem; font-size: 0.75rem;">
+                            ❓ How to Get Credentials
+                        </button>
+                    </div>
+                    
+                    <!-- Help section (hidden by default) -->
+                    <div id="credentials-help" style="display: none; background: #e7f3ff; border: 1px solid #b3d9ff; border-radius: 4px; padding: 1rem; margin-bottom: 1rem;">
+                        <h6 style="margin-top: 0; color: #004085;">📘 How to Get Your Kalshi API Credentials</h6>
+                        <ol style="margin: 0; padding-left: 1.5rem; font-size: 0.85rem;">
+                            <li style="margin-bottom: 0.5rem;">
+                                <strong>Log in to Kalshi:</strong> Go to <a href="https://kalshi.com" target="_blank" style="color: #0056b3;">kalshi.com</a> and sign in to your account
+                            </li>
+                            <li style="margin-bottom: 0.5rem;">
+                                <strong>Navigate to API Settings:</strong> Click your profile (top right) → Settings → API or Developer section
+                            </li>
+                            <li style="margin-bottom: 0.5rem;">
+                                <strong>Generate API Key:</strong> Click "Create API Key" or "Generate New Key"
+                            </li>
+                            <li style="margin-bottom: 0.5rem;">
+                                <strong>Save Both Items:</strong>
+                                <ul style="margin-top: 0.25rem;">
+                                    <li><strong>API Key ID</strong> - A long string like "abcd1234-5678..."</li>
+                                    <li><strong>Private Key File</strong> - Downloads as a .pem or .key file (save it somewhere safe!)</li>
+                                </ul>
+                            </li>
+                            <li style="margin-bottom: 0;">
+                                <strong>⚠️ Important:</strong> You can only download the private key file once. If you lose it, you'll need to generate a new API key.
+                            </li>
+                        </ol>
+                        <button id="hide-help-btn" class="btn btn-sm" style="background: #6c757d; color: white; padding: 0.25rem 0.75rem; font-size: 0.75rem; margin-top: 0.5rem;">
+                            Close Help
+                        </button>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6" style="margin-bottom: 0.5rem;">
+                            <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem;">
+                                Kalshi API Key ID:
+                                <span style="color: #999; font-weight: normal; font-style: italic;">(from your Kalshi account)</span>
+                            </label>
+                            <input type="text" id="api-key-input" placeholder="Example: abcd1234-5678-90ef-ghij-klmnopqrstuv" style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-family: monospace; font-size: 0.85rem;">
+                        </div>
+                        <div class="col-md-6" style="margin-bottom: 0.5rem;">
+                            <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem;">
+                                Private Key File (.pem or .key):
+                                <span style="color: #999; font-weight: normal; font-style: italic;">(downloaded from Kalshi)</span>
+                            </label>
+                            <input type="file" id="private-key-file-input" accept=".pem,.key" style="display: none;">
+                            
+                            <!-- Drop zone -->
+                            <div id="drop-zone" style="border: 2px dashed #ccc; border-radius: 4px; padding: 1rem; text-align: center; background: #f9f9f9; cursor: pointer; transition: all 0.2s;">
+                                <div style="font-size: 2rem; margin-bottom: 0.25rem;">📁</div>
+                                <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.25rem;">
+                                    <strong>Drag & drop</strong> your private key file here
+                                </div>
+                                <div style="font-size: 0.75rem; color: #999; margin-bottom: 0.5rem;">
+                                    or
+                                </div>
+                                <button id="upload-key-btn" class="btn btn-sm" style="background: #007bff; color: white; padding: 0.4rem 1rem; font-size: 0.85rem;">
+                                    Browse Files
+                                </button>
+                            </div>
+                            
+                            <p id="key-file-status" class="text-muted" style="font-size: 0.75rem; margin-top: 0.25rem; margin-bottom: 0;">No file selected</p>
+                        </div>
+                    </div>
+                    <p class="text-muted" style="font-size: 0.75rem; margin-top: 0.5rem; margin-bottom: 0;">
+                        <strong>🔒 Privacy:</strong> Your credentials are stored locally in your browser only. They're never sent anywhere except to Kalshi's API for authentication.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <div class="stat-card">
+                    <h6 class="text-muted">Quote Prices (Editable)</h6>
+                    <div style="margin-bottom: 0.5rem;">
+                        <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem;">YES Bid:</label>
+                        <input type="text" id="yes-bid-input" value="0.0010" style="width: 100%; padding: 0.25rem; border: 1px solid #ccc; border-radius: 4px; font-family: monospace;">
+                    </div>
+                    <div style="margin-bottom: 0.5rem;">
+                        <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem;">NO Bid:</label>
+                        <input type="text" id="no-bid-input" value="0.5600" style="width: 100%; padding: 0.25rem; border: 1px solid #ccc; border-radius: 4px; font-family: monospace;">
+                    </div>
+                    <button id="update-prices-btn" class="btn btn-sm" style="background: #007bff; color: white; width: 100%; margin-top: 0.5rem;">Update Prices</button>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card">
+                    <h6 class="text-muted">Target Market</h6>
+                    <div class="market-name text-muted">No target selected</div>
+                </div>
+                <div class="stat-card">
+                    <h6 class="text-muted">RFQs Seen / Quotes Sent</h6>
+                    <h3><span id="rfq-count">0</span> / <span id="quote-count">0</span></h3>
+                </div>
+            </div>
+        </div>
+
+        <!-- Connection Buttons -->
+        <div class="text-center mb-4">
+            <button id="start-btn" class="btn btn-start btn-lg" style="margin-right: 1rem;">
+                Connect
+            </button>
+            <button id="stop-btn" class="btn btn-start btn-lg" style="background: #999;" disabled>
+                Disconnect
+            </button>
+        </div>
+
+        <!-- RFQ Feeds -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h4 class="mb-0">All RFQs (Last 100)</h4>
+                    <button id="toggle-all-rfqs-btn" class="btn btn-sm" style="background: #666; color: #fff; padding: 0.25rem 0.75rem;">
+                        Hide
+                    </button>
+                </div>
+                <div class="feed" id="rfq-feed" style="display: block;">
+                    <p class="text-muted">Waiting for RFQs...</p>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h4 class="mb-0">Matching RFQs Only</h4>
+                    <div>
+                        <button id="toggle-matches-btn" class="btn btn-sm" style="background: #666; color: #fff; padding: 0.25rem 0.75rem; margin-right: 0.5rem;">
+                            Hide
+                        </button>
+                        <button id="clear-matches-btn" class="btn btn-sm" style="background: #999; color: #fff; padding: 0.25rem 0.75rem;">
+                            Clear Entries
+                        </button>
+                    </div>
+                </div>
+                <div class="feed" id="matches-feed" style="display: block;">
+                    <p class="text-muted">No matches yet...</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quote Feed -->
+        <div class="row">
+            <div class="col-md-12">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h4 class="mb-0">Quote Feed</h4>
+                    <button id="toggle-quote-feed-btn" class="btn btn-sm" style="background: #666; color: #fff; padding: 0.25rem 0.75rem;">
+                        Hide
+                    </button>
+                </div>
+                <div class="feed" id="quote-feed" style="max-height: 300px; display: block;">
+                    <p class="text-muted">No quotes sent yet...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Accepted Quotes Panel -->
+        <div class="row" style="margin-top: 2rem;">
+            <div class="col-md-12">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h4 class="mb-0">Accepted Quotes</h4>
+                    <div>
+                        <button id="toggle-accepted-btn" class="btn btn-sm" style="background: #666; color: #fff; padding: 0.25rem 0.75rem; margin-right: 0.5rem;">
+                            Hide
+                        </button>
+                        <button id="auto-confirm-toggle" class="btn btn-sm" style="background: #999; color: white; padding: 0.25rem 0.75rem;">
+                            Auto-Confirm: <span id="auto-confirm-status">OFF</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="feed" id="accepted-feed" style="max-height: 400px; display: block;">
+                    <p class="text-muted">No accepted quotes yet...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Leg Builder Panel (collapsed by default) -->
+        <div class="row" style="margin-top: 2rem;">
+            <div class="col-md-12">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h4>RFQ Leg Builder <small class="text-muted">(Build Custom Target Parlay)</small></h4>
+                    <button id="toggle-leg-builder" class="btn btn-sm" style="background: #666; color: white;">
+                        Show Builder
+                    </button>
+                </div>
+                <div id="leg-builder-panel" style="display: none;">
+                    <!-- Current Target Display -->
+                    <div style="background: #e0e0e0; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+                        <strong>Current Target:</strong>
+                        <div id="current-target-display" style="margin-top: 0.5rem; font-size: 0.9rem;">
+                            <em class="text-muted">No legs selected. Select legs below to build your target parlay.</em>
+                        </div>
+                        <button id="clear-target-btn" class="btn btn-sm" style="background: #dc3545; color: white; margin-top: 0.5rem;" disabled>
+                            Clear Target
+                        </button>
+                        <button id="update-target-btn" class="btn btn-sm" style="background: #28a745; color: white; margin-top: 0.5rem; margin-left: 0.5rem;" disabled>
+                            Activate Target
+                        </button>
+                    </div>
+
+                    <!-- Available Legs by Market Type -->
+                    <div id="available-legs-container" style="max-height: 500px; overflow-y: auto; background: #f5f5f5; padding: 1rem; border-radius: 4px;">
+                        <p class="text-muted">Loading available legs from RFQ stream...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        
+        let rfqCount = 0;
+        let quoteCount = 0;
+        
+        // Elements
+        const wsStatus = document.getElementById('ws-status');
+        const statusText = document.getElementById('status-text');
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const rfqFeed = document.getElementById('rfq-feed');
+        const matchesFeed = document.getElementById('matches-feed');
+        const quoteFeed = document.getElementById('quote-feed');
+        const acceptedFeed = document.getElementById('accepted-feed');
+        const rfqCountEl = document.getElementById('rfq-count');
+        const quoteCountEl = document.getElementById('quote-count');
+        const clearMatchesBtn = document.getElementById('clear-matches-btn');
+        const autoConfirmToggle = document.getElementById('auto-confirm-toggle');
+        const autoConfirmStatus = document.getElementById('auto-confirm-status');
+        const yesBidInput = document.getElementById('yes-bid-input');
+        const noBidInput = document.getElementById('no-bid-input');
+        const updatePricesBtn = document.getElementById('update-prices-btn');
+        
+        // Toggle buttons for feeds
+        const toggleAllRfqsBtn = document.getElementById('toggle-all-rfqs-btn');
+        const toggleMatchesBtn = document.getElementById('toggle-matches-btn');
+        const toggleQuoteFeedBtn = document.getElementById('toggle-quote-feed-btn');
+        const toggleAcceptedBtn = document.getElementById('toggle-accepted-btn');
+        
+        // API Credentials elements
+        const apiKeyInput = document.getElementById('api-key-input');
+        const privateKeyFileInput = document.getElementById('private-key-file-input');
+        const uploadKeyBtn = document.getElementById('upload-key-btn');
+        const keyFileStatus = document.getElementById('key-file-status');
+        const showHelpBtn = document.getElementById('show-help-btn');
+        const hideHelpBtn = document.getElementById('hide-help-btn');
+        const credentialsHelp = document.getElementById('credentials-help');
+        const dropZone = document.getElementById('drop-zone');
+        
+        // Store private key contents
+        let privateKeyContents = null;
+        
+        // Help button handlers
+        showHelpBtn.addEventListener('click', () => {
+            credentialsHelp.style.display = 'block';
+            showHelpBtn.style.display = 'none';
+        });
+        
+        hideHelpBtn.addEventListener('click', () => {
+            credentialsHelp.style.display = 'none';
+            showHelpBtn.style.display = 'inline-block';
+        });
+        
+        // Load saved credentials from localStorage
+        const savedApiKey = localStorage.getItem('kalshi_api_key');
+        const savedPrivateKey = localStorage.getItem('kalshi_private_key_contents');
+        if (savedApiKey) apiKeyInput.value = savedApiKey;
+        if (savedPrivateKey) {
+            privateKeyContents = savedPrivateKey;
+            keyFileStatus.textContent = '✓ Private key loaded from browser storage';
+            keyFileStatus.style.color = '#28a745';
+        }
+        
+        // Save API key when changed
+        apiKeyInput.addEventListener('change', () => {
+            localStorage.setItem('kalshi_api_key', apiKeyInput.value);
+        });
+        
+        // Function to handle file loading
+        function loadKeyFile(file) {
+            // Check file extension
+            const fileName = file.name.toLowerCase();
+            if (!fileName.endsWith('.pem') && !fileName.endsWith('.key')) {
+                keyFileStatus.textContent = '✗ Please select a .pem or .key file';
+                keyFileStatus.style.color = '#dc3545';
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                privateKeyContents = e.target.result;
+                localStorage.setItem('kalshi_private_key_contents', privateKeyContents);
+                keyFileStatus.textContent = `✓ Loaded: ${file.name}`;
+                keyFileStatus.style.color = '#28a745';
+                
+                // Update drop zone to show success
+                dropZone.style.background = '#d4edda';
+                dropZone.style.borderColor = '#28a745';
+                setTimeout(() => {
+                    dropZone.style.background = '#f9f9f9';
+                    dropZone.style.borderColor = '#ccc';
+                }, 2000);
+            };
+            reader.onerror = () => {
+                keyFileStatus.textContent = '✗ Error reading file';
+                keyFileStatus.style.color = '#dc3545';
+            };
+            reader.readAsText(file);
+        }
+        
+        // Handle file upload button click
+        uploadKeyBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            privateKeyFileInput.click();
+        });
+        
+        // Handle file selection from file input
+        privateKeyFileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                loadKeyFile(file);
+            }
+        });
+        
+        // Drag and drop handlers
+        dropZone.addEventListener('click', () => {
+            privateKeyFileInput.click();
+        });
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.style.background = '#e7f3ff';
+            dropZone.style.borderColor = '#007bff';
+            dropZone.style.borderStyle = 'solid';
+        });
+        
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.style.background = '#f9f9f9';
+            dropZone.style.borderColor = '#ccc';
+            dropZone.style.borderStyle = 'dashed';
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.style.background = '#f9f9f9';
+            dropZone.style.borderColor = '#ccc';
+            dropZone.style.borderStyle = 'dashed';
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                loadKeyFile(files[0]);
+            }
+        });
+        
+        // Leg builder elements
+        const toggleLegBuilderBtn = document.getElementById('toggle-leg-builder');
+        const legBuilderPanel = document.getElementById('leg-builder-panel');
+        const availableLegsContainer = document.getElementById('available-legs-container');
+        const currentTargetDisplay = document.getElementById('current-target-display');
+        const clearTargetBtn = document.getElementById('clear-target-btn');
+        const updateTargetBtn = document.getElementById('update-target-btn');
+        
+        // Auto-confirm state
+        let autoConfirmEnabled = false;
+        
+        // Leg builder state
+        let selectedLegs = [];
+        let availableLegs = {};
+        
+        // Connection status
+        socket.on('connection_status', (data) => {
+            if (data.connected) {
+                wsStatus.className = 'status-dot status-connected';
+                statusText.textContent = 'Connected';
+                startBtn.disabled = true;
+                startBtn.textContent = 'Connect';
+                stopBtn.disabled = false;
+            } else {
+                wsStatus.className = 'status-dot status-disconnected';
+                statusText.textContent = 'Disconnected';
+                startBtn.disabled = false;
+                startBtn.textContent = 'Connect';
+                stopBtn.disabled = true;
+                stopBtn.textContent = 'Disconnect';
+            }
+        });
+        
+        // RFQ received
+        socket.on('rfq_received', (rfq) => {
+            rfqCount++;
+            rfqCountEl.textContent = rfqCount;
+            
+            // Remove placeholder if present in all RFQs feed
+            if (rfqFeed.children.length === 1 && rfqFeed.children[0].classList.contains('text-muted')) {
+                rfqFeed.innerHTML = '';
+            }
+            
+            // Create item for all RFQs feed (left column)
+            const item = document.createElement('div');
+            // Color code based on match
+            if (rfq.matches) {
+                item.className = 'feed-item rfq-match';
+            } else {
+                item.className = 'feed-item rfq-no-match';
+            }
+            item.style.padding = '0.5rem';
+            item.style.marginBottom = '0.25rem';
+            item.style.fontSize = '0.75rem';
+            item.style.fontFamily = 'monospace';
+            
+            // Compact single-line display with full info
+            const time = new Date(rfq.timestamp).toLocaleTimeString();
+            const matchIcon = rfq.matches ? ' ✓' : '';
+            const shortId = rfq.rfq_id.substring(0, 8);
+            
+            // Create unique ID for this item
+            const itemId = 'rfq-' + shortId + '-' + Date.now();
+            
+            // Show legs in compact form
+            let legsInfo = '';
+            if (rfq.legs && rfq.legs.length > 0) {
+                legsInfo = ` [${rfq.legs.join(' + ')}]`;
+            }
+            
+            item.innerHTML = `
+                <div>
+                    ${time} | RFQ: ${shortId} | <span class="contract-id" onclick="toggleTicker('${itemId}')">Contract ID</span>${legsInfo} | ${rfq.contracts}c${matchIcon}
+                </div>
+                <div id="${itemId}" class="full-ticker">${rfq.market_ticker}</div>
+            `;
+            
+            // Add to all RFQs feed (left column)
+            rfqFeed.insertBefore(item, rfqFeed.firstChild);
+            
+            // Keep only last 100 in all RFQs feed
+            while (rfqFeed.children.length > 100) {
+                rfqFeed.removeChild(rfqFeed.lastChild);
+            }
+            
+            // If it matches, also add to matches feed (right column)
+            if (rfq.matches) {
+                // Remove placeholder if present in matches feed
+                if (matchesFeed.children.length === 1 && matchesFeed.children[0].classList.contains('text-muted')) {
+                    matchesFeed.innerHTML = '';
+                }
+                
+                // Clone the item for matches feed
+                const matchItem = item.cloneNode(true);
+                
+                // Update IDs and onclick handlers in the cloned item
+                const matchItemId = 'matching-' + itemId;
+                const fullTickerDiv = matchItem.querySelector('.full-ticker');
+                const contractIdSpan = matchItem.querySelector('.contract-id');
+                
+                if (fullTickerDiv) {
+                    fullTickerDiv.id = matchItemId;
+                }
+                if (contractIdSpan) {
+                    contractIdSpan.setAttribute('onclick', `toggleTicker('${matchItemId}')`);
+                }
+                
+                matchesFeed.insertBefore(matchItem, matchesFeed.firstChild);
+                // No limit for matches feed - it grows indefinitely
+            }
+        });
+        
+        // Quote sent
+        socket.on('quote_sent', (quote) => {
+            quoteCount++;
+            quoteCountEl.textContent = quoteCount;
+            
+            // Remove placeholder if present
+            if (quoteFeed.children.length === 1 && quoteFeed.children[0].classList.contains('text-muted')) {
+                quoteFeed.innerHTML = '';
+            }
+            
+            const item = document.createElement('div');
+            item.className = 'feed-item';
+            item.id = `quote-${quote.quote_id}`;
+            item.style.padding = '0.5rem';
+            item.style.marginBottom = '0.25rem';
+            item.style.fontSize = '0.75rem';
+            item.style.fontFamily = 'monospace';
+            
+            const time = new Date(quote.timestamp).toLocaleTimeString();
+            const shortQuoteId = quote.quote_id ? quote.quote_id.substring(0, 8) : 'N/A';
+            const shortRfqId = quote.rfq_id.substring(0, 8);
+            
+            // Format request and response payloads as JSON strings
+            const requestPayloadStr = JSON.stringify(quote.request_payload, null, 2);
+            const responsePayloadStr = quote.response_payload ? JSON.stringify(quote.response_payload, null, 2) : 'N/A';
+            
+            item.innerHTML = `
+                <div><strong>${time}</strong> | Quote: ${shortQuoteId} | RFQ: ${shortRfqId}</div>
+                <div style="background: #e0e0e0; padding: 0.25rem; margin-top: 0.25rem; border-radius: 3px;">
+                    <strong>Request:</strong><br>
+                    <pre style="margin: 0; font-size: 0.7rem; white-space: pre-wrap; word-break: break-all;">${requestPayloadStr}</pre>
+                </div>
+                <div style="background: #d4edda; padding: 0.25rem; margin-top: 0.25rem; border-radius: 3px;">
+                    <strong>Response:</strong><br>
+                    <pre style="margin: 0; font-size: 0.7rem; white-space: pre-wrap; word-break: break-all;">${responsePayloadStr}</pre>
+                </div>
+            `;
+            
+            quoteFeed.insertBefore(item, quoteFeed.firstChild);
+            
+            // Keep only last 50
+            while (quoteFeed.children.length > 50) {
+                quoteFeed.removeChild(quoteFeed.lastChild);
+            }
+        });
+        
+        // Quote matched
+        socket.on('quote_matched', (quote) => {
+            const item = document.getElementById(`quote-${quote.quote_id}`);
+            if (item) {
+                item.className = 'feed-item quote-matched';
+                const badge = item.querySelector('.badge');
+                if (badge) {
+                    badge.className = 'badge bg-dark';
+                    badge.textContent = 'Matched!';
+                }
+            }
+        });
+        
+        // Quote error
+        socket.on('quote_error', (quote) => {
+            const item = document.createElement('div');
+            item.className = 'feed-item quote-error';
+            item.style.padding = '0.5rem';
+            item.style.marginBottom = '0.25rem';
+            item.style.fontSize = '0.75rem';
+            item.style.fontFamily = 'monospace';
+            
+            const time = new Date(quote.timestamp).toLocaleTimeString();
+            const shortRfqId = quote.rfq_id.substring(0, 8);
+            
+            // Format request and response payloads as JSON strings
+            const requestPayloadStr = quote.request_payload ? JSON.stringify(quote.request_payload, null, 2) : 'N/A';
+            const responsePayloadStr = quote.response_payload ? JSON.stringify(quote.response_payload, null, 2) : 'N/A';
+            
+            item.innerHTML = `
+                <div><strong>${time}</strong> | RFQ: ${shortRfqId}</div>
+                <div style="color: #dc3545; margin-top: 0.25rem;"><strong>Error:</strong> ${quote.error}</div>
+                <div style="background: #e0e0e0; padding: 0.25rem; margin-top: 0.25rem; border-radius: 3px;">
+                    <strong>Request:</strong><br>
+                    <pre style="margin: 0; font-size: 0.7rem; white-space: pre-wrap; word-break: break-all;">${requestPayloadStr}</pre>
+                </div>
+                <div style="background: #f8d7da; padding: 0.25rem; margin-top: 0.25rem; border-radius: 3px;">
+                    <strong>Response:</strong><br>
+                    <pre style="margin: 0; font-size: 0.7rem; white-space: pre-wrap; word-break: break-all;">${responsePayloadStr}</pre>
+                </div>
+            `;
+            
+            quoteFeed.insertBefore(item, quoteFeed.firstChild);
+            
+            // Keep only last 50
+            while (quoteFeed.children.length > 50) {
+                quoteFeed.removeChild(quoteFeed.lastChild);
+            }
+        });
+        
+        // Start button
+        startBtn.addEventListener('click', () => {
+            // Validate credentials
+            const apiKey = apiKeyInput.value.trim();
+            
+            if (!apiKey || !privateKeyContents) {
+                alert('Please enter API Key ID and upload a Private Key file before connecting.');
+                return;
+            }
+            
+            // Save credentials
+            localStorage.setItem('kalshi_api_key', apiKey);
+            
+            startBtn.disabled = true;
+            startBtn.textContent = 'Connecting...';
+            socket.emit('start_websocket', {
+                api_key: apiKey,
+                private_key_contents: privateKeyContents
+            });
+        });
+        
+        // Stop button
+        stopBtn.addEventListener('click', () => {
+            stopBtn.disabled = true;
+            stopBtn.textContent = 'Disconnecting...';
+            socket.emit('stop_websocket');
+        });
+        
+        // Toggle All RFQs feed
+        toggleAllRfqsBtn.addEventListener('click', () => {
+            if (rfqFeed.style.display === 'none') {
+                rfqFeed.style.display = 'block';
+                toggleAllRfqsBtn.textContent = 'Hide';
+            } else {
+                rfqFeed.style.display = 'none';
+                toggleAllRfqsBtn.textContent = 'Show';
+            }
+        });
+        
+        // Toggle Matching RFQs feed
+        toggleMatchesBtn.addEventListener('click', () => {
+            if (matchesFeed.style.display === 'none') {
+                matchesFeed.style.display = 'block';
+                toggleMatchesBtn.textContent = 'Hide';
+            } else {
+                matchesFeed.style.display = 'none';
+                toggleMatchesBtn.textContent = 'Show';
+            }
+        });
+        
+        // Toggle Quote Feed
+        toggleQuoteFeedBtn.addEventListener('click', () => {
+            if (quoteFeed.style.display === 'none') {
+                quoteFeed.style.display = 'block';
+                toggleQuoteFeedBtn.textContent = 'Hide';
+            } else {
+                quoteFeed.style.display = 'none';
+                toggleQuoteFeedBtn.textContent = 'Show';
+            }
+        });
+        
+        // Toggle Accepted Quotes feed
+        toggleAcceptedBtn.addEventListener('click', () => {
+            if (acceptedFeed.style.display === 'none') {
+                acceptedFeed.style.display = 'block';
+                toggleAcceptedBtn.textContent = 'Hide';
+            } else {
+                acceptedFeed.style.display = 'none';
+                toggleAcceptedBtn.textContent = 'Show';
+            }
+        });
+        
+        // Clear matches button
+        clearMatchesBtn.addEventListener('click', () => {
+            matchesFeed.innerHTML = '<p class="text-muted">No matches yet...</p>';
+        });
+        
+        // Update prices button
+        updatePricesBtn.addEventListener('click', () => {
+            const yesBid = yesBidInput.value;
+            const noBid = noBidInput.value;
+            
+            fetch('/api/quote-prices/update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    yes_bid: yesBid,
+                    no_bid: noBid
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                console.log('Prices updated:', data);
+                alert(`Prices updated!\nYES: ${data.yes_bid}\nNO: ${data.no_bid}`);
+            })
+            .catch(err => {
+                console.error('Error updating prices:', err);
+                alert('Error updating prices');
+            });
+        });
+        
+        // Load stats on page load
+        fetch('/api/status')
+            .then(r => r.json())
+            .then(data => {
+                rfqCountEl.textContent = data.stats.rfqs_seen;
+                quoteCountEl.textContent = data.stats.quotes_sent;
+            });
+        
+        // Auto-refresh feeds every 10 seconds
+        setInterval(() => {
+            fetch('/api/rfq-history')
+                .then(r => r.json())
+                .then(data => {
+                    // Update counter
+                    if (data.rfqs.length > rfqCount) {
+                        rfqCount = data.rfqs.length;
+                        rfqCountEl.textContent = rfqCount;
+                    }
+                    
+                    // Display all RFQs if feed is empty (for initial load)
+                    if (data.rfqs.length > 0 && rfqFeed.children.length === 1 && rfqFeed.children[0].classList.contains('text-muted')) {
+                        rfqFeed.innerHTML = '';
+                        
+                        // Process RFQs (last 100 only)
+                        const rfqsToShow = data.rfqs.slice(-100).reverse();
+                        rfqsToShow.forEach(rfq => {
+                            const time = new Date(rfq.timestamp).toLocaleTimeString();
+                            const matchIcon = rfq.matches ? ' ✓' : '';
+                            const shortId = rfq.rfq_id.substring(0, 8);
+                            const itemId = 'rfq-' + shortId + '-' + Date.now() + '-' + Math.random();
+                            
+                            let legsInfo = '';
+                            if (rfq.legs && rfq.legs.length > 0) {
+                                legsInfo = ` [${rfq.legs.join(' + ')}]`;
+                            }
+                            
+                            const item = document.createElement('div');
+                            item.className = 'feed-item' + (rfq.matches ? ' rfq-match' : ' rfq-no-match');
+                            item.style.padding = '0.5rem';
+                            item.style.marginBottom = '0.25rem';
+                            item.style.fontSize = '0.75rem';
+                            item.style.fontFamily = 'monospace';
+                            
+                            item.innerHTML = `
+                                <div>
+                                    ${time} | RFQ: ${shortId} | <span class="contract-id" onclick="toggleTicker('${itemId}')">Contract ID</span>${legsInfo} | ${rfq.contracts}c${matchIcon}
+                                </div>
+                                <div id="${itemId}" class="full-ticker">${rfq.market_ticker}</div>
+                            `;
+                            
+                            rfqFeed.appendChild(item);
+                            
+                            // Also add matches to matches feed
+                            if (rfq.matches) {
+                                if (matchesFeed.children.length === 1 && matchesFeed.children[0].classList.contains('text-muted')) {
+                                    matchesFeed.innerHTML = '';
+                                }
+                                const matchItem = item.cloneNode(true);
+                                matchesFeed.appendChild(matchItem);
+                            }
+                        });
+                    }
+                });
+                
+            fetch('/api/quote-history')
+                .then(r => r.json())
+                .then(data => {
+                    // Update counter
+                    if (data.quotes.length > quoteCount) {
+                        quoteCount = data.quotes.length;
+                        quoteCountEl.textContent = quoteCount;
+                    }
+                    
+                    // Display all quotes if feed is empty
+                    if (data.quotes.length > 0 && quoteFeed.children.length === 1 && quoteFeed.children[0].classList.contains('text-muted')) {
+                        quoteFeed.innerHTML = '';
+                        data.quotes.reverse().forEach(quote => {
+                            const item = document.createElement('div');
+                            item.className = 'feed-item' + (quote.status === 'error' ? ' quote-error' : '');
+                            
+                            if (quote.status === 'error') {
+                                item.innerHTML = `
+                                    <div class="timestamp">${new Date(quote.timestamp).toLocaleTimeString()}</div>
+                                    <div><strong>RFQ:</strong> ${quote.rfq_id}</div>
+                                    <div><strong>Error:</strong> ${quote.error}</div>
+                                `;
+                            } else {
+                                item.innerHTML = `
+                                    <div class="timestamp">${new Date(quote.timestamp).toLocaleTimeString()}</div>
+                                    <div><strong>Quote ID:</strong> ${quote.quote_id}</div>
+                                    <div><strong>RFQ:</strong> ${quote.rfq_id}</div>
+                                    <div><strong>YES:</strong> ${quote.yes_bid} | <strong>NO:</strong> ${quote.no_bid}</div>
+                                    <div class="mt-2"><span class="badge bg-secondary">Sent</span></div>
+                                `;
+                            }
+                            
+                            quoteFeed.appendChild(item);
+                        });
+                    }
+                });
+        }, 10000);
+        
+        // Toggle ticker display
+        function toggleTicker(tickerId) {
+            const tickerEl = document.getElementById(tickerId);
+            if (tickerEl) {
+                tickerEl.style.display = tickerEl.style.display === 'block' ? 'none' : 'block';
+            }
+        }
+        
+        // Load target ticker on page load
+        fetch('/api/status')
+            .then(r => r.json())
+            .then(data => {
+                const targetTickerEl = document.getElementById('target-ticker');
+                if (data.target_market && data.target_market.ticker) {
+                    targetTickerEl.textContent = data.target_market.ticker;
+                }
+            })
+            .catch(err => console.error('Error loading target ticker:', err));
+        
+        // Auto-confirm toggle
+        autoConfirmToggle.addEventListener('click', () => {
+            fetch('/api/auto-confirm/toggle', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    autoConfirmEnabled = data.auto_confirm_enabled;
+                    updateAutoConfirmUI();
+                })
+                .catch(err => console.error('Error toggling auto-confirm:', err));
+        });
+        
+        function updateAutoConfirmUI() {
+            autoConfirmStatus.textContent = autoConfirmEnabled ? 'ON' : 'OFF';
+            autoConfirmToggle.style.background = autoConfirmEnabled ? '#28a745' : '#999';
+        }
+        
+        // Auto-confirm status changed
+        socket.on('auto_confirm_changed', (data) => {
+            autoConfirmEnabled = data.enabled;
+            updateAutoConfirmUI();
+        });
+        
+        // Quote accepted
+        socket.on('quote_accepted', (quote) => {
+            // Remove placeholder if present
+            if (acceptedFeed.children.length === 1 && acceptedFeed.children[0].classList.contains('text-muted')) {
+                acceptedFeed.innerHTML = '';
+            }
+            
+            const item = document.createElement('div');
+            item.className = 'feed-item';
+            item.id = `accepted-${quote.quote_id}`;
+            item.style.padding = '0.5rem';
+            item.style.marginBottom = '0.5rem';
+            item.style.fontSize = '0.75rem';
+            item.style.fontFamily = 'monospace';
+            item.style.background = '#fff3cd';
+            item.style.borderLeft = '4px solid #ffc107';
+            
+            const time = new Date(quote.timestamp).toLocaleTimeString();
+            const shortQuoteId = quote.quote_id.substring(0, 8);
+            const shortRfqId = quote.rfq_id.substring(0, 8);
+            const autoConfirmedBadge = quote.auto_confirmed ? ' <span style="background: #17a2b8; color: white; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.65rem;">AUTO</span>' : '';
+            
+            item.innerHTML = `
+                <div><strong>${time}</strong> | Quote: ${shortQuoteId} | RFQ: ${shortRfqId}${autoConfirmedBadge}</div>
+                <div style="margin-top: 0.25rem;"><strong>Prices:</strong> YES ${quote.yes_price} | NO ${quote.no_price}</div>
+                <div id="confirm-status-${quote.quote_id}" style="margin-top: 0.5rem; font-size: 0.7rem; color: #856404;">
+                    <strong>Status:</strong> <span>Waiting for confirmation...</span>
+                </div>
+            `;
+            
+            acceptedFeed.insertBefore(item, acceptedFeed.firstChild);
+            
+            // Keep only last 50
+            while (acceptedFeed.children.length > 50) {
+                acceptedFeed.removeChild(acceptedFeed.lastChild);
+            }
+        });
+        
+        // Quote confirmed
+        socket.on('quote_confirmed', (quote) => {
+            const statusDiv = document.getElementById(`confirm-status-${quote.quote_id}`);
+            if (statusDiv) {
+                const confirmTime = new Date(quote.confirmation_time).toLocaleTimeString();
+                const responseStr = JSON.stringify(quote.confirmation_response, null, 2);
+                
+                statusDiv.innerHTML = `
+                    <strong>Status:</strong> <span style="color: #28a745;">✓ Confirmed at ${confirmTime}</span>
+                    <div style="background: #d4edda; padding: 0.25rem; margin-top: 0.25rem; border-radius: 3px;">
+                        <strong>Response:</strong><br>
+                        <pre style="margin: 0; font-size: 0.65rem; white-space: pre-wrap; word-break: break-all;">${responseStr}</pre>
+                    </div>
+                `;
+                statusDiv.style.color = '#155724';
+                
+                // Update parent item background
+                const item = document.getElementById(`accepted-${quote.quote_id}`);
+                if (item) {
+                    item.style.background = '#d4edda';
+                    item.style.borderLeft = '4px solid #28a745';
+                }
+            }
+        });
+        
+        // Quote confirmation error
+        socket.on('quote_confirmation_error', (quote) => {
+            const statusDiv = document.getElementById(`confirm-status-${quote.quote_id}`);
+            if (statusDiv) {
+                const responseStr = quote.confirmation_response ? JSON.stringify(quote.confirmation_response, null, 2) : 'N/A';
+                
+                statusDiv.innerHTML = `
+                    <strong>Status:</strong> <span style="color: #dc3545;">✗ Confirmation failed</span>
+                    <div style="background: #f8d7da; padding: 0.25rem; margin-top: 0.25rem; border-radius: 3px;">
+                        <strong>Error:</strong> ${quote.confirmation_error}<br>
+                        <strong>Response:</strong><br>
+                        <pre style="margin: 0; font-size: 0.65rem; white-space: pre-wrap; word-break: break-all;">${responseStr}</pre>
+                    </div>
+                `;
+                statusDiv.style.color = '#721c24';
+                
+                // Update parent item background
+                const item = document.getElementById(`accepted-${quote.quote_id}`);
+                if (item) {
+                    item.style.background = '#f8d7da';
+                    item.style.borderLeft = '4px solid #dc3545';
+                }
+            }
+        });
+        
+        // ========== LEG BUILDER FUNCTIONALITY ==========
+        
+        // Toggle leg builder panel
+        toggleLegBuilderBtn.addEventListener('click', () => {
+            if (legBuilderPanel.style.display === 'none') {
+                legBuilderPanel.style.display = 'block';
+                toggleLegBuilderBtn.textContent = 'Hide Builder';
+                toggleLegBuilderBtn.style.background = '#999';
+                // Load available legs when opening
+                loadAvailableLegs();
+            } else {
+                legBuilderPanel.style.display = 'none';
+                toggleLegBuilderBtn.textContent = 'Show Builder';
+                toggleLegBuilderBtn.style.background = '#666';
+            }
+        });
+        
+        // Load available legs from server
+        function loadAvailableLegs() {
+            fetch('/api/available-legs')
+                .then(r => r.json())
+                .then(data => {
+                    availableLegs = data.legs;
+                    renderAvailableLegs();
+                })
+                .catch(err => console.error('Error loading available legs:', err));
+        }
+        
+        // Render available legs organized by sport and category
+        function renderAvailableLegs() {
+            if (Object.keys(availableLegs).length === 0) {
+                availableLegsContainer.innerHTML = '<p class="text-muted">No legs available yet. Connect to WebSocket and wait for RFQs...</p>';
+                return;
+            }
+            
+            let html = '';
+            
+            // Sort sports to show NFL first, then NBA, then others
+            const sports = Object.keys(availableLegs).sort((a, b) => {
+                if (a === 'NFL') return -1;
+                if (b === 'NFL') return 1;
+                if (a === 'NBA') return -1;
+                if (b === 'NBA') return 1;
+                return a.localeCompare(b);
+            });
+            
+            for (const sport of sports) {
+                const categories = availableLegs[sport];
+                
+                html += `<div style="margin-bottom: 2rem; border: 1px solid #ddd; border-radius: 6px; padding: 1rem; background: #fafafa;">`;
+                html += `<h5 style="margin-bottom: 1rem; font-weight: bold; color: #333;">${sport}</h5>`;
+                
+                // Sort categories with preferred order
+                const categoryOrder = ['Moneylines', 'Spreads', 'Totals', 'Player Props - Points', 
+                                       'Player Props - Assists', 'Player Props - Threes', 
+                                       'Player Props - Rebounds', 'Player Props - Touchdowns'];
+                const sortedCategories = Object.keys(categories).sort((a, b) => {
+                    const aIdx = categoryOrder.indexOf(a);
+                    const bIdx = categoryOrder.indexOf(b);
+                    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+                    if (aIdx !== -1) return -1;
+                    if (bIdx !== -1) return 1;
+                    return a.localeCompare(b);
+                });
+                
+                for (const category of sortedCategories) {
+                    const legs = categories[category];
+                    
+                    html += `<div style="margin-bottom: 1rem;">`;
+                    html += `<h6 style="margin-bottom: 0.5rem; font-weight: 600; color: #555;">${category}</h6>`;
+                    html += `<div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">`;
+                    
+                    for (const [legId, legDesc] of Object.entries(legs)) {
+                        const isSelected = selectedLegs.includes(legId);
+                        const bgColor = isSelected ? '#007bff' : '#fff';
+                        const textColor = isSelected ? '#fff' : '#000';
+                        const border = isSelected ? '2px solid #0056b3' : '1px solid #ccc';
+                        
+                        html += `
+                            <div class="leg-option" data-leg-id="${legId}" 
+                                 style="background: ${bgColor}; color: ${textColor}; 
+                                        border: ${border}; padding: 0.5rem; 
+                                        border-radius: 4px; cursor: pointer; 
+                                        font-size: 0.85rem; user-select: none;">
+                                ${legDesc}
+                            </div>
+                        `;
+                    }
+                    
+                    html += `</div></div>`;
+                }
+                
+                html += `</div>`;
+            }
+            
+            availableLegsContainer.innerHTML = html;
+            
+            // Add click handlers to leg options
+            document.querySelectorAll('.leg-option').forEach(el => {
+                el.addEventListener('click', () => {
+                    const legId = el.getAttribute('data-leg-id');
+                    toggleLegSelection(legId);
+                });
+            });
+        }
+        
+        // Toggle leg selection
+        function toggleLegSelection(legId) {
+            const index = selectedLegs.indexOf(legId);
+            if (index > -1) {
+                selectedLegs.splice(index, 1);
+            } else {
+                selectedLegs.push(legId);
+            }
+            
+            updateTargetDisplay();
+            renderAvailableLegs(); // Re-render to update selected state
+        }
+        
+        // Update current target display
+        function updateTargetDisplay() {
+            if (selectedLegs.length === 0) {
+                currentTargetDisplay.innerHTML = '<em class="text-muted">No legs selected. Select legs below to build your target parlay.</em>';
+                clearTargetBtn.disabled = true;
+                updateTargetBtn.disabled = true;
+            } else {
+                const legDescriptions = selectedLegs.map(legId => {
+                    // Find the description for this leg in nested structure
+                    for (const sport of Object.values(availableLegs)) {
+                        for (const categories of Object.values(sport)) {
+                            if (categories[legId]) {
+                                return categories[legId];
+                            }
+                        }
+                    }
+                    return legId;
+                });
+                
+                currentTargetDisplay.innerHTML = `
+                    <strong>${selectedLegs.length} leg(s):</strong><br>
+                    ${legDescriptions.map(desc => `• ${desc}`).join('<br>')}
+                `;
+                clearTargetBtn.disabled = false;
+                updateTargetBtn.disabled = false;
+            }
+        }
+        
+        // Clear target
+        clearTargetBtn.addEventListener('click', () => {
+            selectedLegs = [];
+            updateTargetDisplay();
+            renderAvailableLegs();
+        });
+        
+        // Update/activate target
+        updateTargetBtn.addEventListener('click', () => {
+            // Get leg descriptions for display
+            const legDescriptions = selectedLegs.map(legId => {
+                // Find the description for this leg in nested structure
+                for (const sport of Object.values(availableLegs)) {
+                    for (const categories of Object.values(sport)) {
+                        if (categories[legId]) {
+                            return categories[legId];
+                        }
+                    }
+                }
+                return legId;
+            });
+            
+            fetch('/api/target-legs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    target_legs: selectedLegs
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                alert(`Target updated! Now matching RFQs with ${data.count} selected leg(s).`);
+                
+                // Update the monitoring panel at the top of the page
+                const monitoringText = document.getElementById('monitoring-text');
+                const targetMarketCard = document.querySelector('.market-name');
+                
+                if (legDescriptions.length === 0) {
+                    if (monitoringText) {
+                        monitoringText.innerHTML = '<em class="text-muted">Select the combo below to monitor and quote</em>';
+                    }
+                    if (targetMarketCard) {
+                        targetMarketCard.textContent = 'No target set';
+                    }
+                } else {
+                    const shortDisplay = legDescriptions.map(desc => {
+                        // Shorten descriptions for display
+                        const parts = desc.split(':');
+                        if (parts.length > 1) {
+                            // Format: "yes KXNFLGAME..." -> "yes BUF"
+                            const side = parts[0];
+                            const ticker = parts[1];
+                            // Try to extract team/player name from ticker
+                            const match = ticker.match(/-([\w]+)$/);
+                            if (match) {
+                                return `${side} ${match[1]}`;
+                            }
+                        }
+                        return desc.substring(0, 30) + (desc.length > 30 ? '...' : '');
+                    }).join(' + ');
+                    
+                    if (monitoringText) {
+                        monitoringText.innerHTML = `Monitoring: <strong>${shortDisplay}</strong>`;
+                    }
+                    if (targetMarketCard) {
+                        targetMarketCard.textContent = shortDisplay;
+                    }
+                }
+            })
+            .catch(err => {
+                console.error('Error updating target:', err);
+                alert('Error updating target. Check console.');
+            });
+        });
+        
+        // Poll for new legs every 5 seconds when builder is open
+        setInterval(() => {
+            if (legBuilderPanel.style.display !== 'none') {
+                loadAvailableLegs();
+            }
+        }, 5000);
+        
+        // Load current target legs on page load
+        fetch('/api/target-legs')
+            .then(r => r.json())
+            .then(data => {
+                selectedLegs = data.target_legs || [];
+                updateTargetDisplay();
+                
+                // Also update monitoring panel if we have legs loaded
+                if (selectedLegs.length > 0) {
+                    // Wait for available legs to load first
+                    setTimeout(() => {
+                        const legDescriptions = selectedLegs.map(legId => {
+                            for (const sport of Object.values(availableLegs)) {
+                                for (const categories of Object.values(sport)) {
+                                    if (categories[legId]) {
+                                        return categories[legId];
+                                    }
+                                }
+                            }
+                            return legId;
+                        });
+                        
+                        const shortDisplay = legDescriptions.map(desc => {
+                            const parts = desc.split(':');
+                            if (parts.length > 1) {
+                                const side = parts[0];
+                                const ticker = parts[1];
+                                const match = ticker.match(/-([\w]+)$/);
+                                if (match) {
+                                    return `${side} ${match[1]}`;
+                                }
+                            }
+                            return desc.substring(0, 30) + (desc.length > 30 ? '...' : '');
+                        }).join(' + ');
+                        
+                        const monitoringText = document.getElementById('monitoring-text');
+                        const targetMarketCard = document.querySelector('.market-name');
+                        if (monitoringText) {
+                            monitoringText.innerHTML = `Monitoring: <strong>${shortDisplay}</strong>`;
+                        }
+                        if (targetMarketCard) {
+                            targetMarketCard.textContent = shortDisplay;
+                        }
+                    }, 1000);
+                }
+            })
+            .catch(err => console.error('Error loading target legs:', err));
+    </script>
+</body>
+</html>
+
