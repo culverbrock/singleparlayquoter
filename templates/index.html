@@ -138,16 +138,131 @@
             </p>
         </div>
 
+        <!-- How RFQs Work Panel -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="stat-card">
+                    <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 0.5rem;">
+                        <h6 class="text-muted" style="margin: 0;">📚 How Kalshi RFQs Work</h6>
+                        <button id="toggle-how-it-works-btn" class="btn btn-sm" style="background: #17a2b8; color: white; padding: 0.25rem 0.75rem; font-size: 0.75rem; margin-left: auto;">
+                            Show Guide
+                        </button>
+                    </div>
+                    
+                    <!-- How it works content (hidden by default) -->
+                    <div id="how-it-works-content" style="display: none; margin-top: 1rem;">
+                        <!-- Step-by-step diagram -->
+                        <div style="background: #f8f9fa; border: 2px solid #dee2e6; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem;">
+                            <h6 style="color: #495057; margin-top: 0; font-weight: bold;">🔄 RFQ Flow Diagram</h6>
+                            
+                            <!-- Step 1 -->
+                            <div style="display: flex; align-items: start; margin-bottom: 1.5rem; padding: 1rem; background: white; border-radius: 6px; border-left: 4px solid #007bff;">
+                                <div style="background: #007bff; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0; margin-right: 1rem;">1</div>
+                                <div>
+                                    <h6 style="margin: 0 0 0.5rem 0; color: #007bff; font-weight: bold;">RFQ Messages Come In</h6>
+                                    <p style="margin: 0; color: #495057; font-size: 0.9rem;">
+                                        RFQs (Requests for Quotes) stream in from Kalshi's WebSocket. Each RFQ contains market legs (e.g., "YES Buffalo Wins + YES Josh Allen TD"). 
+                                        All RFQs appear in the <strong>"All RFQs"</strong> feed.
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <!-- Step 2 -->
+                            <div style="display: flex; align-items: start; margin-bottom: 1.5rem; padding: 1rem; background: white; border-radius: 6px; border-left: 4px solid #28a745;">
+                                <div style="background: #28a745; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0; margin-right: 1rem;">2</div>
+                                <div>
+                                    <h6 style="margin: 0 0 0.5rem 0; color: #28a745; font-weight: bold;">Select Your Target Legs</h6>
+                                    <p style="margin: 0 0 0.5rem 0; color: #495057; font-size: 0.9rem;">
+                                        To quote on specific parlays:
+                                    </p>
+                                    <ul style="margin: 0; padding-left: 1.5rem; color: #495057; font-size: 0.9rem;">
+                                        <li>Scroll to <strong>"RFQ Leg Builder"</strong> and click <strong>"Show Builder"</strong></li>
+                                        <li>Legs populate automatically from incoming RFQs (if nothing shows, connect and wait for RFQs)</li>
+                                        <li>Click legs to select them (they turn blue)</li>
+                                        <li>Click <strong>"Activate Target"</strong> to start quoting</li>
+                                    </ul>
+                                    <p style="margin: 0.5rem 0 0 0; padding: 0.5rem; background: #d1ecf1; border-radius: 4px; font-size: 0.85rem; color: #0c5460;">
+                                        💡 <strong>Note:</strong> Your parlay will be quoted if the RFQ contains <em>at least</em> all your selected legs (it can have additional legs too!)
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <!-- Step 3 -->
+                            <div style="display: flex; align-items: start; margin-bottom: 1.5rem; padding: 1rem; background: white; border-radius: 6px; border-left: 4px solid #ffc107;">
+                                <div style="background: #ffc107; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0; margin-right: 1rem;">3</div>
+                                <div>
+                                    <h6 style="margin: 0 0 0.5rem 0; color: #ffc107; font-weight: bold;">Quote Created & Sent</h6>
+                                    <p style="margin: 0; color: #495057; font-size: 0.9rem;">
+                                        When an RFQ matches your selected legs:
+                                    </p>
+                                    <ul style="margin: 0.5rem 0 0 0; padding-left: 1.5rem; color: #495057; font-size: 0.9rem;">
+                                        <li>Quote appears in <strong>"Quote Feed"</strong> with full request/response details</li>
+                                        <li>RFQ shows in <strong>"Matching RFQs Only"</strong> feed (green highlight)</li>
+                                        <li>Your configured YES/NO bid prices are used</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                            <!-- Step 4 -->
+                            <div style="display: flex; align-items: start; padding: 1rem; background: white; border-radius: 6px; border-left: 4px solid #dc3545;">
+                                <div style="background: #dc3545; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0; margin-right: 1rem;">4</div>
+                                <div>
+                                    <h6 style="margin: 0 0 0.5rem 0; color: #dc3545; font-weight: bold;">Quote Accepted (Requires Confirmation!)</h6>
+                                    <p style="margin: 0 0 0.5rem 0; color: #495057; font-size: 0.9rem;">
+                                        If the RFQ creator accepts your quote:
+                                    </p>
+                                    <ul style="margin: 0; padding-left: 1.5rem; color: #495057; font-size: 0.9rem;">
+                                        <li>Quote appears in <strong>"Accepted Quotes"</strong> feed</li>
+                                        <li><strong>⚠️ CRITICAL:</strong> The quote is NOT filled until you <strong>CONFIRM</strong> it</li>
+                                        <li>Enable <strong>"Auto-Confirm"</strong> to automatically confirm accepted quotes</li>
+                                        <li>Or manually confirm each accepted quote</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Important Warning -->
+                        <div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 6px; padding: 1rem; margin-top: 1rem;">
+                            <h6 style="margin: 0 0 0.5rem 0; color: #856404; font-weight: bold;">⚠️ Important Warning</h6>
+                            <p style="margin: 0; color: #856404; font-size: 0.9rem;">
+                                <strong>Many RFQs in Kalshi show contract amount as "0c"</strong> which means max fill size is NOT supported. 
+                                Be careful when quoting! Your quote might be accepted for more contracts than expected. Always check the contract amount before quoting.
+                            </p>
+                        </div>
+                        
+                        <!-- Quick Tips -->
+                        <div style="background: #d4edda; border: 2px solid #28a745; border-radius: 6px; padding: 1rem; margin-top: 1rem;">
+                            <h6 style="margin: 0 0 0.5rem 0; color: #155724; font-weight: bold;">💡 Quick Tips</h6>
+                            <ul style="margin: 0; padding-left: 1.5rem; color: #155724; font-size: 0.9rem;">
+                                <li><strong>Start Simple:</strong> Select 2-3 legs to start, then expand as you get comfortable</li>
+                                <li><strong>Adjust Prices:</strong> Change YES/NO bids in the "Quote Prices" section to control your edge</li>
+                                <li><strong>Use Show/Hide:</strong> Collapse sections you don't need to focus on what matters</li>
+                                <li><strong>Monitor Carefully:</strong> Watch the "Accepted Quotes" feed if auto-confirm is enabled</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- API Credentials Row -->
         <div class="row mb-4">
             <div class="col-md-12">
                 <div class="stat-card">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                         <h6 class="text-muted" style="margin: 0;">API Credentials (Required)</h6>
-                        <button id="show-help-btn" class="btn btn-sm" style="background: #17a2b8; color: white; padding: 0.25rem 0.75rem; font-size: 0.75rem;">
-                            ❓ How to Get Credentials
-                        </button>
+                        <div>
+                            <button id="show-help-btn" class="btn btn-sm" style="background: #17a2b8; color: white; padding: 0.25rem 0.75rem; font-size: 0.75rem; margin-right: 0.5rem;">
+                                ❓ How to Get Credentials
+                            </button>
+                            <button id="toggle-credentials-btn" class="btn btn-sm" style="background: #666; color: white; padding: 0.25rem 0.75rem; font-size: 0.75rem;">
+                                Hide
+                            </button>
+                        </div>
                     </div>
+                    
+                    <!-- Credentials content -->
+                    <div id="credentials-content" style="display: block;">
                     
                     <!-- Help section (hidden by default) -->
                     <div id="credentials-help" style="display: none; background: #e7f3ff; border: 1px solid #b3d9ff; border-radius: 4px; padding: 1rem; margin-bottom: 1rem;">
@@ -213,6 +328,8 @@
                     <p class="text-muted" style="font-size: 0.75rem; margin-top: 0.5rem; margin-bottom: 0;">
                         <strong>🔒 Privacy:</strong> Your credentials are stored locally in your browser only. They're never sent anywhere except to Kalshi's API for authentication.
                     </p>
+                    
+                    </div><!-- End credentials-content -->
                 </div>
             </div>
         </div>
@@ -378,11 +495,15 @@
         const noBidInput = document.getElementById('no-bid-input');
         const updatePricesBtn = document.getElementById('update-prices-btn');
         
-        // Toggle buttons for feeds
+        // Toggle buttons for feeds and sections
         const toggleAllRfqsBtn = document.getElementById('toggle-all-rfqs-btn');
         const toggleMatchesBtn = document.getElementById('toggle-matches-btn');
         const toggleQuoteFeedBtn = document.getElementById('toggle-quote-feed-btn');
         const toggleAcceptedBtn = document.getElementById('toggle-accepted-btn');
+        const toggleHowItWorksBtn = document.getElementById('toggle-how-it-works-btn');
+        const toggleCredentialsBtn = document.getElementById('toggle-credentials-btn');
+        const howItWorksContent = document.getElementById('how-it-works-content');
+        const credentialsContent = document.getElementById('credentials-content');
         
         // API Credentials elements
         const apiKeyInput = document.getElementById('api-key-input');
@@ -738,6 +859,28 @@
             stopBtn.disabled = true;
             stopBtn.textContent = 'Disconnecting...';
             socket.emit('stop_websocket');
+        });
+        
+        // Toggle How It Works section
+        toggleHowItWorksBtn.addEventListener('click', () => {
+            if (howItWorksContent.style.display === 'none') {
+                howItWorksContent.style.display = 'block';
+                toggleHowItWorksBtn.textContent = 'Hide Guide';
+            } else {
+                howItWorksContent.style.display = 'none';
+                toggleHowItWorksBtn.textContent = 'Show Guide';
+            }
+        });
+        
+        // Toggle Credentials section
+        toggleCredentialsBtn.addEventListener('click', () => {
+            if (credentialsContent.style.display === 'none') {
+                credentialsContent.style.display = 'block';
+                toggleCredentialsBtn.textContent = 'Hide';
+            } else {
+                credentialsContent.style.display = 'none';
+                toggleCredentialsBtn.textContent = 'Show';
+            }
         });
         
         // Toggle All RFQs feed
